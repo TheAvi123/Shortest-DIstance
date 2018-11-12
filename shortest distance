@@ -1,85 +1,109 @@
 (require 2htdp/image)
 (require 2htdp/universe)
-(require spd/tags)
+(require spd/tags)           
 
+;;==========================================
+;; Constants
 
-;; =================
-;; Constants:
-
-(define WIDTH 600)
+(define WIDTH 400)
 (define HEIGHT 600)
 
-(define MTS (rectangle WIDTH HEIGHT "solid" "green"))
+(define CTR-X (/ WIDTH 2))
+(define CTR-Y (/ HEIGHT 2))
 
+(define BKG-MAP (rectangle WIDTH HEIGHT "solid" "yellow"))
+  
+(define MARKER (overlay/align "center" "center"
+                              (square 10 "solid" "yellow")
+                              (square 15 "solid" "black")))
 
+;;=================================================
+;; Data Definitions:
 
+(@HtDD Position)
+(define-struct position (xpos ypos))
+;; Postition is (make-position Natural Natural)
+;; interp. the x, y position of an position on the screen
 
-;; =================
-;; Data definitions:
-            
-(define-struct position (x-cor y-cor))
-;; x-cor is number x cooridnate
-;;y-cor is number y coordinate
-
-(define P1 (make-position 20 30))
+(define P1 (make-position 100 50))
 (define P2 (make-position 200 300))
-(define P3 (make-position 0 0))
-(define P4 (make-position 10 500))
-(define P5 (make-position 600 20))
+(define P3 (make-position 200 100))
+(define P4 (make-position 350 25))
+(define P5 (make-position 350 550))
 
+#;
+(define (fn-for-position p)
+  (... (position-xpos)
+       (position-ypos)))
 
-(define-struct trace (p1 p2))
-;; P1 is false or position
-;; P2 is false position
+(@HtDD ListOfPosition)
+;; ListOfEgg is one of:
+;; - empty
+;; - (cons Position ListOfPosition)
+;; interp. a list of positions
+(define LOP0 empty)
+(define LOP1 (cons P1 empty))
+(define LOP2 (list P1 P2 P3 P4 P5))
 
-(define L0(make-trace false false))
-(define L1(make-trace P1 P2))
-(define L2(make-trace P2 P3))
-(define L3(make-trace P3 P1))
-;(define L4(make-trace P1 false))
-;(define L5(make-trace false P1))
-(define L6(make-trace P2 P1))
-(define L7 (make-trace P4 P5))
+(define (fn-for-lop lop)
+  (cond [(empty? lop) (...)]
+        [else
+         (... (fn-for-position (first lop))
+              (fn-for-lop (rest lop)))]))
 
-;; =================
+;;===================================================
 ;; Functions:
 
-;; trace -> trace
-;; start the world with (main 0)
-;; 
-(define (main t)
-  (big-bang t                        ; trace
-            (to-draw   render)))       ; trace -> Image
-           ; (on-mouse  point1)
-           ; (on-mouse  create-trace))); trace Integer Integer MouseEvent -> trace
-
-;-------------------------------------------------------------------------
-(@HtDF render)
-;; trace -> Image
-;; render the trace into a line image at appropriate place on MTS 
-;(check-expect (render L1) (line (trace-p1 L1) (trace-p2 L1) "black")) 
-              
-;(define (render t) MTS) ;stub
-(define (render t)
-  (place-image
-  (line (position-x-cor (trace-p2 t)) (position-y-cor(trace-p2 t)) "black")
-  (position-x-cor (trace-p1 t))
-  (position-y-cor (trace-p1 t))
-  MTS))
-;<use template from trace>
+(@HtDF main)
+(@signature ListOfPosition -> ListOfPosition)
+;; start the world with (main empty)
+;; no tests for main
+(@template htdw-main)
+(define (main lop) 
+  (big-bang lop                ;ListOfPosition
+    (to-draw render-markers)   ;ListOfPosition -> Image
+    (on-mouse mark-pos)))      ;ListOfPosition Integer Integer MouseEvent -> Image
 
 
-;-------------------------------------------------------------------------
-;(@HtDF create-trace)
-;; trace Integer Integer MouseEvent -> trace
-;; move trace to mouse's x-coordinate
-;(check-expect (create-trace L1 0 0 "button-down") (make-trace )
-;(check-expect (handle-mouse 10 0 0 "button-down") 0)
-;(check-expect (handle-mouse 0 10 0 "button-down") 10)
-;(check-expect (handle-mouse 0 0 10 "button-down") 0)
-;(check-expect (handle-mouse 0 10 0 "button-up") 0)
-;(check-expect (handle-mouse 10 100 20 "button-down") 100)
-;;(check-expect (handle-mouse 10 600 20 "button-down") 600)
-;(check-expect (handle-mouse 600 100 20 "button-down") 100)
+(@HtDF render-markers)
+(@signature ListOfPosition -> Image)
+;; place markers for each position
 
-;(define (create-trace t x-cor y-cor me) (make-trace P1 P1)) ;stub
+(@template ListOfPosition)
+(define (render-markers lop)
+  (cond [(empty? lop) BKG-MAP]
+        [(empty? (rest lop))(place-marker (first lop) BKG-MAP)]
+        [else (add-line (place-marker (first lop)
+                                      (render-markers (rest lop)))
+                        (position-xpos (first lop))
+                        (position-ypos (first lop))
+                        (position-xpos (second lop))
+                        (position-ypos (second lop))
+                        "blue")]))
+
+(@HtDF place-marker)
+(@signature Position Image -> Image)
+;; place MARKER at x and y
+
+(@template Position add-param)
+(define (place-marker p1 img)
+  (place-image MARKER (position-xpos p1) (position-ypos p1) img))  
+
+(@HtDF mark-pos)
+(@signature ListOfPosition Integer Integer MouseEvent -> ListOfPosition)
+;; add a marker at x, y when the mouse is clicked
+
+(@template MouseEvent add-param)
+(define (mark-pos lop x y me)
+  (cond [(and (mouse=? me "button-down")
+              (= (count lop) 0)) (list (make-position x y))]
+        [(and (mouse=? me "button-down")
+              (= (count lop) 1)) (cons (make-position x y) lop)]
+        [(and (mouse=? me "button-down")
+              (= (count lop) 2)) empty]
+        [else lop]))
+
+
+(define (count lop)
+  (cond [(empty? lop) 0]
+        [else (add1 (count (rest lop)))]))
